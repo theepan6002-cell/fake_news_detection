@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TruthEngine - Fake News Detection AI</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+</head>
+<body>
+
+    <!-- Header Navigation -->
+    <header>
+        <div class="nav-container">
+            <div class="logo">✦ Truth<span>Engine</span></div>
+            <ul class="nav-links">
+                <li class="active"><a href="/">Home</a></li>
+                <li><a href="/about">Methodology</a></li>
+                {% if user %}
+                <li class="user-info">
+                    <span>👤 {{ user }}</span>
+                    <a href="/logout" class="logout-btn">Logout</a>
+                </li>
+                {% endif %}
+            </ul>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main>
+        <div class="hero-section">
+            <span class="badge">AI Text Analysis</span>
+            <h1>Real-Time Credibility Detection</h1>
+            <p>Paste any news article, report, or headline below. Our trained Machine Learning model will extract textual characteristics and analyze its likelihood of being credible versus fake.</p>
+        </div>
+
+        {% if error %}
+        <div class="error-alert">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+            <span>{{ error }}</span>
+        </div>
+        {% endif %}
+
+        <!-- Interactive Form -->
+        <div class="glass-card">
+            <h2>Analyze Article Content</h2>
+            <form id="analysis_form" class="analysis-form" action="/predict" method="POST">
+                <div class="textarea-container">
+                    <textarea 
+                        name="news_text" 
+                        id="news_text" 
+                        placeholder="Paste the full body text of the news article here (minimum 20 words recommended for accuracy)..." 
+                        required
+                    ></textarea>
+                    <div id="word_count" class="word-counter">0 words</div>
+                </div>
+                <button type="submit" class="submit-btn">
+                    <span>Analyze Integrity</span>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+                </button>
+            </form>
+
+            <!-- Sample Presets -->
+            <div class="presets-container">
+                <div class="preset-title">Test with Sample Presets</div>
+                <div class="preset-buttons">
+                    <button class="preset-btn" data-type="true-politics">✓ Reuters (Politics - True)</button>
+                    <button class="preset-btn" data-type="true-science">✓ NASA Space News (True)</button>
+                    <button class="preset-btn" data-type="fake-space">✗ Clickbait Space Hoax (Fake)</button>
+                    <button class="preset-btn" data-type="fake-health">✗ FDA Cancer Ban Conspiracy (Fake)</button>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer>
+        <div class="footer-container">
+            <div>© 2026 TruthEngine AI. Built for Fake News Detection.</div>
+            <div>Powered by <a href="https://scikit-learn.org" target="_blank" rel="noopener">Scikit-Learn</a> & <a href="https://flask.palletsprojects.com" target="_blank" rel="noopener">Flask</a></div>
+        </div>
+    </footer>
+
+    <!-- Loading Overlay -->
+    <div id="loader" class="loader-overlay">
+        <div class="spinner"></div>
+        <div class="loader-text">Analyzing linguistics and vocabulary indicators...</div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>

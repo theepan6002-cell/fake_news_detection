@@ -1,0 +1,58 @@
+{
+  "best_model": "logistic_regression",
+  "best_model_display": "Logistic Regression",
+  "comparison": {
+    "logistic_regression": {
+      "accuracy": 1.0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1_score": 1.0,
+      "confusion_matrix": {
+        "tp": 93,
+        "fp": 0,
+        "fn": 0,
+        "tn": 104
+      },
+      "model_name": "Logistic Regression"
+    },
+    "naive_bayes": {
+      "accuracy": 1.0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1_score": 1.0,
+      "confusion_matrix": {
+        "tp": 93,
+        "fp": 0,
+        "fn": 0,
+        "tn": 104
+      },
+      "model_name": "Multinomial Naive Bayes"
+    },
+    "linear_svm": {
+      "accuracy": 1.0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1_score": 1.0,
+      "confusion_matrix": {
+        "tp": 93,
+        "fp": 0,
+        "fn": 0,
+        "tn": 104
+      },
+      "model_name": "Linear SVM"
+    }
+  },
+  "selected_metrics": {
+    "accuracy": 1.0,
+    "precision": 1.0,
+    "recall": 1.0,
+    "f1_score": 1.0,
+    "confusion_matrix": {
+      "tp": 93,
+      "fp": 0,
+      "fn": 0,
+      "tn": 104
+    },
+    "model_name": "Logistic Regression"
+  }
+}

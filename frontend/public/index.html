@@ -1,0 +1,1325 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VeriTruth AI - Fake News Detection & Analytics Engine</title>
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"Plus Jakarta Sans"', 'sans-serif'],
+            mono: ['"JetBrains Mono"', 'monospace'],
+          },
+          colors: {
+            brand: {
+              50: '#eef2ff',
+              100: '#e0e7ff',
+              500: '#6366f1',
+              600: '#4f46e5',
+              700: '#4338ca',
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- React 18 & ReactDOM CDN -->
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+
+  <!-- Babel Standalone JSX Compiler -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <style>
+    body {
+      background-color: #030712;
+      color: #f3f4f6;
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      overflow-x: hidden;
+    }
+
+    /* Ambient Background Glow */
+    .bg-mesh {
+      background-image: 
+        radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.15) 0px, transparent 50%),
+        radial-gradient(at 100% 0%, rgba(168, 85, 247, 0.15) 0px, transparent 50%),
+        radial-gradient(at 50% 100%, rgba(236, 72, 153, 0.1) 0px, transparent 50%);
+    }
+
+    /* Glassmorphism Cards */
+    .glass-panel {
+      background: rgba(15, 23, 42, 0.65);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .glass-card {
+      background: rgba(17, 24, 39, 0.7);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .glass-card:hover {
+      border-color: rgba(99, 102, 241, 0.3);
+      box-shadow: 0 10px 30px -10px rgba(99, 102, 241, 0.2);
+    }
+
+    /* Glow Effects */
+    .glow-real {
+      box-shadow: 0 0 25px rgba(16, 185, 129, 0.25);
+    }
+
+    .glow-fake {
+      box-shadow: 0 0 25px rgba(244, 63, 94, 0.25);
+    }
+
+    /* Custom Scrollbars */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #030712; }
+    ::-webkit-scrollbar-thumb { background: #1f2937; border-radius: 9999px; }
+    ::-webkit-scrollbar-thumb:hover { background: #374151; }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(12px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .animate-fade-in { animation: fadeIn 0.3s ease-out forwards; }
+  </style>
+</head>
+<body class="bg-mesh min-h-screen">
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect } = React;
+    const API_BASE_URL = "http://127.0.0.1:5000/api";
+
+    // Reusable API Request Helper
+    async function apiRequest(endpoint, method = "GET", body = null) {
+      const options = {
+        method,
+        headers: { "Content-Type": "application/json" }
+      };
+      if (body) options.body = JSON.stringify(body);
+      const response = await fetch(`${API_BASE_URL}${endpoint}`, options);
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || "Request failed");
+      }
+      return data;
+    }
+
+    // Toast Notification Component
+    function Toast({ toast, onClose }) {
+      if (!toast) return null;
+      const isError = toast.type === "error";
+      return (
+        <div className="fixed bottom-6 right-6 z-50 animate-fade-in max-w-md">
+          <div className={`flex items-center justify-between p-4 rounded-2xl border glass-panel shadow-2xl ${
+            isError ? "border-rose-500/50 text-rose-200 bg-rose-950/80" : "border-emerald-500/50 text-emerald-200 bg-emerald-950/80"
+          }`}>
+            <div className="flex items-center space-x-3">
+              <span className="text-xl">{isError ? "🚨" : "✨"}</span>
+              <p className="text-xs font-semibold">{toast.message}</p>
+            </div>
+            <button onClick={onClose} className="ml-4 text-slate-400 hover:text-white font-bold">&times;</button>
+          </div>
+        </div>
+      );
+    }
+
+    // Loading Spinner Component
+    function LoadingSpinner({ label = "Processing news analysis..." }) {
+      return (
+        <div className="flex flex-col items-center justify-center p-12 space-y-4">
+          <div className="relative w-14 h-14">
+            <div className="absolute inset-0 rounded-full border-4 border-indigo-500/20 animate-ping" />
+            <div className="absolute inset-0 rounded-full border-4 border-t-indigo-500 border-r-purple-500 border-b-pink-500 border-l-transparent animate-spin" />
+          </div>
+          <p className="text-xs font-semibold text-indigo-300 animate-pulse font-mono tracking-wide">{label}</p>
+        </div>
+      );
+    }
+
+    // Top Navigation Header
+    function Navbar({ activePage, setActivePage, currentUser, onLogout, serverOnline }) {
+      const isAdmin = currentUser?.role === "admin";
+      const userNav = [
+        { id: "home", label: "Detector", icon: "⚡" },
+        { id: "dashboard", label: "Analytics", icon: "📊" },
+        { id: "history", label: "History", icon: "📜" },
+        { id: "dataset", label: "Dataset Insights", icon: "📁" }
+      ];
+      const adminNav = [
+        { id: "admin_dashboard", label: "Admin Dashboard", icon: "🛡️" },
+        { id: "home", label: "Detector", icon: "⚡" },
+        { id: "dataset", label: "Dataset Insights", icon: "📁" },
+        { id: "model", label: "ML Pipeline", icon: "🤖" }
+      ];
+      const items = isAdmin ? adminNav : userNav;
+
+      return (
+        <header className="sticky top-0 z-40 glass-panel border-b border-slate-800/80">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex items-center justify-between h-16">
+              {/* Logo */}
+              <div className="flex items-center space-x-3 cursor-pointer" onClick={() => setActivePage(isAdmin ? "admin_dashboard" : "home")}>
+                <div className="h-10 w-10 rounded-xl bg-gradient-to-tr from-indigo-500 via-purple-500 to-pink-500 p-0.5 shadow-lg shadow-indigo-500/20">
+                  <div className="h-full w-full bg-slate-950 rounded-[10px] flex items-center justify-center">
+                    <span className="text-lg">🛡️</span>
+                  </div>
+                </div>
+                <div>
+                  <span className="text-base font-extrabold bg-gradient-to-r from-white via-indigo-200 to-indigo-400 bg-clip-text text-transparent">
+                    VeriTruth AI
+                  </span>
+                  <div className="flex items-center space-x-1.5">
+                    <span className={`inline-block w-2 h-2 rounded-full ${serverOnline ? "bg-emerald-400 animate-pulse" : "bg-rose-500"}`} />
+                    <span className="text-[10px] font-mono text-slate-400">{serverOnline ? "API Online" : "Connecting..."}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Navigation Items */}
+              <nav className="hidden md:flex items-center space-x-1">
+                {items.map((item) => {
+                  const isActive = activePage === item.id;
+                  return (
+                    <button
+                      key={item.id}
+                      onClick={() => setActivePage(item.id)}
+                      className={`flex items-center space-x-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all ${
+                        isActive
+                          ? "bg-indigo-600/30 text-indigo-200 border border-indigo-500/40 shadow-inner"
+                          : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
+                      }`}
+                    >
+                      <span>{item.icon}</span>
+                      <span>{item.label}</span>
+                    </button>
+                  );
+                })}
+              </nav>
+
+              {/* User Avatar & Profile */}
+              <div className="flex items-center space-x-3">
+                <button
+                  onClick={() => setActivePage("profile")}
+                  className={`flex items-center space-x-2 px-3 py-1.5 rounded-xl border text-xs font-semibold transition-all ${
+                    activePage === "profile"
+                      ? "bg-indigo-600 text-white border-indigo-500"
+                      : "bg-slate-900 hover:bg-slate-800 text-slate-300 border-slate-800"
+                  }`}
+                >
+                  <img src={currentUser?.avatar || "https://api.dicebear.com/7.x/bottts/svg?seed=user"} className="w-5 h-5 rounded-full" alt="avatar" />
+                  <span className="max-w-[100px] truncate">{currentUser?.full_name || "Profile"}</span>
+                </button>
+
+                <button
+                  onClick={onLogout}
+                  className="px-3 py-1.5 bg-rose-950/40 hover:bg-rose-900/60 text-rose-300 border border-rose-800/60 rounded-xl text-xs font-semibold transition-all"
+                >
+                  Logout
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Mobile Strip */}
+          <div className="md:hidden flex overflow-x-auto px-3 py-2 border-t border-slate-800/60 bg-slate-950/80 space-x-1.5">
+            {items.map((item) => (
+              <button
+                key={item.id}
+                onClick={() => setActivePage(item.id)}
+                className={`whitespace-nowrap px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                  activePage === item.id ? "bg-indigo-600 text-white" : "text-slate-400 hover:text-white"
+                }`}
+              >
+                {item.icon} {item.label}
+              </button>
+            ))}
+          </div>
+        </header>
+      );
+    }
+
+    // 1. HOME / DETECTOR PAGE
+    function Home({ setActivePage, setToast, currentUser }) {
+      const [newsText, setNewsText] = useState("");
+      const [loading, setLoading] = useState(false);
+      const [result, setResult] = useState(null);
+
+      const SAMPLE_REAL = "WASHINGTON (Reuters) - The US Federal Reserve maintained benchmark interest rates today, citing stable labor market metrics and gradual inflation deceleration towards target parameters. Federal Reserve Chairman Jerome Powell noted that central bank economic projections remain aligned with long-term macroeconomic stability.";
+      const SAMPLE_FAKE = "BREAKING ALERT: Underground whistleblowers expose secret miracle elixir discovered in deep mountain caves that reverses aging by 30 years overnight! Big Pharma is actively trying to suppress this document from public view before it gets deleted!";
+      const SAMPLE_SCIENCE = "GENEVA (CERN) - Physicists at the Large Hadron Collider have recorded anomalous particle interactions during high-energy proton collisions, offering potential empirical evidence for novel quantum interactions beyond the Standard Model.";
+
+      const handleAnalyze = async () => {
+        if (!newsText.trim()) {
+          setToast({ type: "error", message: "Please enter or select news article text for classification." });
+          return;
+        }
+        setLoading(true);
+        setResult(null);
+
+        try {
+          const data = await apiRequest("/predict", "POST", { news_text: newsText, user_id: currentUser?.id });
+          setResult(data);
+          setToast({ type: "success", message: `Article classified as: ${data.prediction}` });
+        } catch (err) {
+          setToast({ type: "error", message: err.message || "Failed to analyze text." });
+        } finally {
+          setLoading(false);
+        }
+      };
+
+      const wordCount = newsText.trim() ? newsText.trim().split(/\s+/).length : 0;
+      const readTime = Math.ceil(wordCount / 200);
+
+      return (
+        <div className="max-w-5xl mx-auto space-y-8 pb-12 animate-fade-in">
+          {/* Header Banner */}
+          <div className="text-center space-y-3 pt-4">
+            <div className="inline-flex items-center space-x-2 px-3.5 py-1 bg-indigo-500/10 border border-indigo-500/20 rounded-full text-indigo-300 text-xs font-semibold">
+              <span>🧠 TF-IDF Feature Vectorizer</span>
+              <span>•</span>
+              <span>Scikit-learn Machine Learning</span>
+            </div>
+            <h1 className="text-3xl sm:text-5xl font-black text-white tracking-tight">
+              AI Fake News Detector & Verifier
+            </h1>
+            <p className="max-w-2xl mx-auto text-slate-400 text-xs sm:text-sm leading-relaxed">
+              Analyze article text using Natural Language Processing (NLP) tokenization, lexical stop-words filtering, TF-IDF n-gram vectorization, and trained ML probability models.
+            </p>
+          </div>
+
+          {/* Quick Presets */}
+          <div className="glass-panel p-4 rounded-2xl flex flex-wrap items-center justify-between gap-3 border border-slate-800">
+            <span className="text-xs font-bold text-slate-300 flex items-center space-x-1.5">
+              <span>⚡ Try 1-Click Samples:</span>
+            </span>
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={() => { setNewsText(SAMPLE_REAL); setResult(null); }}
+                className="px-3 py-1.5 bg-emerald-950/40 hover:bg-emerald-900/60 border border-emerald-800/60 text-emerald-300 rounded-xl text-xs font-semibold transition-all"
+              >
+                📰 Sample Real News
+              </button>
+              <button
+                onClick={() => { setNewsText(SAMPLE_FAKE); setResult(null); }}
+                className="px-3 py-1.5 bg-rose-950/40 hover:bg-rose-900/60 border border-rose-800/60 text-rose-300 rounded-xl text-xs font-semibold transition-all"
+              >
+                🚨 Sample Fake News
+              </button>
+              <button
+                onClick={() => { setNewsText(SAMPLE_SCIENCE); setResult(null); }}
+                className="px-3 py-1.5 bg-indigo-950/40 hover:bg-indigo-900/60 border border-indigo-800/60 text-indigo-300 rounded-xl text-xs font-semibold transition-all"
+              >
+                🔬 Sample Tech News
+              </button>
+            </div>
+          </div>
+
+          {/* Input Box */}
+          <div className="glass-card p-6 sm:p-8 rounded-3xl space-y-4">
+            <div className="flex items-center justify-between text-xs font-medium text-slate-400">
+              <label className="text-slate-200 font-semibold flex items-center space-x-2">
+                <span>📝 Enter News Headline or Full Article Content</span>
+              </label>
+              <span>{wordCount} Words • ~{readTime} Min Read</span>
+            </div>
+
+            <textarea
+              rows="6"
+              value={newsText}
+              onChange={(e) => setNewsText(e.target.value)}
+              placeholder="Paste news text here to verify authenticity..."
+              className="w-full bg-slate-950/90 text-slate-100 placeholder-slate-500 rounded-2xl p-4 text-xs sm:text-sm border border-slate-800 focus:border-indigo-500 outline-none transition-all resize-none shadow-inner"
+            />
+
+            <div className="flex items-center justify-between pt-2">
+              <button
+                onClick={() => { setNewsText(""); setResult(null); }}
+                className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-slate-400 rounded-xl text-xs font-semibold transition-all"
+              >
+                Clear Text
+              </button>
+
+              <button
+                onClick={handleAnalyze}
+                disabled={loading}
+                className="px-6 py-3 bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 hover:from-indigo-500 hover:to-pink-500 text-white font-bold text-xs sm:text-sm rounded-xl shadow-lg shadow-indigo-600/30 transition-all disabled:opacity-50 flex items-center space-x-2"
+              >
+                {loading ? <span>Analyzing Text...</span> : <span>🔍 Run AI Detection Model</span>}
+              </button>
+            </div>
+          </div>
+
+          {/* Loading Spinner */}
+          {loading && <LoadingSpinner label="Tokenizing text & evaluating TF-IDF probability..." />}
+
+          {/* Classification Result Card */}
+          {result && !loading && (
+            <div className={`glass-card p-6 sm:p-8 rounded-3xl space-y-6 animate-fade-in ${
+              result.prediction === "Likely Real" ? "glow-real border-emerald-500/30" : "glow-fake border-rose-500/30"
+            }`}>
+              {/* Badge & Confidence */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-slate-800/80">
+                <div className="space-y-1">
+                  <span className="text-[10px] font-mono text-slate-400 uppercase tracking-widest block">AI Classification Output</span>
+                  <div className="flex items-center space-x-3">
+                    <span className={`px-4 py-1.5 rounded-2xl text-sm sm:text-base font-black tracking-tight ${
+                      result.prediction === "Likely Real" ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40" : "bg-rose-500/20 text-rose-300 border border-rose-500/40"
+                    }`}>
+                      {result.prediction === "Likely Real" ? "✅ LIKELY REAL NEWS" : "🚨 LIKELY FAKE NEWS"}
+                    </span>
+                    <span className="text-xs font-mono font-bold text-indigo-300">{result.confidence}% Confidence</span>
+                  </div>
+                </div>
+
+                <div className="text-right font-mono text-xs text-slate-400">
+                  <span>Processed: {result.timestamp}</span>
+                </div>
+              </div>
+
+              {/* Confidence Progress Meter */}
+              <div className="space-y-2">
+                <div className="flex justify-between text-xs font-semibold">
+                  <span className="text-rose-400">Likely Fake ({result.probabilities?.fake || 0}%)</span>
+                  <span className="text-emerald-400">Likely Real ({result.probabilities?.real || 0}%)</span>
+                </div>
+                <div className="w-full bg-slate-950 h-3 rounded-full overflow-hidden p-0.5 border border-slate-800">
+                  <div
+                    className="h-full rounded-full bg-gradient-to-r from-rose-500 via-purple-500 to-emerald-500 transition-all duration-700"
+                    style={{ width: `${result.probabilities?.real || 50}%` }}
+                  />
+                </div>
+              </div>
+
+              {/* Top Key Signals Word Cloud */}
+              {result.top_words?.length > 0 && (
+                <div className="space-y-2 pt-2">
+                  <span className="text-xs font-bold text-slate-300 block">🔑 Top TF-IDF Key Vocabulary Signals:</span>
+                  <div className="flex flex-wrap gap-2">
+                    {result.top_words.map((word, idx) => (
+                      <span key={idx} className="px-3 py-1 bg-slate-950 border border-slate-800 rounded-xl text-xs font-mono text-indigo-300">
+                        #{word}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Explanation Box */}
+              <div className="p-4 bg-slate-950/80 rounded-2xl border border-slate-800 text-xs text-slate-300 space-y-1">
+                <span className="font-bold text-indigo-300 block">💡 Model Reasoning & Context:</span>
+                <p className="leading-relaxed text-slate-400">{result.explanation}</p>
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // 2. DASHBOARD PAGE
+    function Dashboard({ setToast }) {
+      const [stats, setStats] = useState(null);
+      const [loading, setLoading] = useState(true);
+
+      const fetchStats = async () => {
+        setLoading(true);
+        try {
+          const data = await apiRequest("/dashboard");
+          setStats(data);
+        } catch (err) {
+          setToast({ type: "error", message: err.message || "Failed to load dashboard metrics." });
+        } finally {
+          setLoading(false);
+        }
+      };
+
+      useEffect(() => { fetchStats(); }, []);
+
+      if (loading) return <LoadingSpinner label="Gathering platform statistics & confusion matrix..." />;
+
+      const cards = stats?.cards || {};
+      const cm = stats?.confusion_matrix || { tp: 0, tn: 0, fp: 0, fn: 0 };
+      const modelPerf = stats?.model_performance || {};
+
+      return (
+        <div className="space-y-8 pb-12 animate-fade-in">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <h1 className="text-3xl font-black text-white">AI Analytics & Performance Dashboard</h1>
+              <p className="text-slate-400 text-xs sm:text-sm mt-1">Live audit metrics, evaluation benchmarks, and prediction breakdown.</p>
+            </div>
+            <button onClick={fetchStats} className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-800 rounded-xl text-xs font-semibold transition-all">
+              🔄 Refresh Analytics
+            </button>
+          </div>
+
+          {/* 7 KPI Cards */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
+            <div className="glass-card p-4 rounded-2xl space-y-1">
+              <span className="text-[11px] text-slate-400 font-medium block">Total Checked</span>
+              <p className="text-2xl font-black text-white font-mono">{cards.total_checked || 0}</p>
+              <span className="text-[10px] text-indigo-400 font-mono">Articles</span>
+            </div>
+            <div className="glass-card p-4 rounded-2xl space-y-1 border-emerald-500/20">
+              <span className="text-[11px] text-emerald-400 font-medium block">Likely Real</span>
+              <p className="text-2xl font-black text-emerald-300 font-mono">{cards.likely_real || 0}</p>
+              <span className="text-[10px] text-emerald-400/80 font-mono">Passed Audit</span>
+            </div>
+            <div className="glass-card p-4 rounded-2xl space-y-1 border-rose-500/20">
+              <span className="text-[11px] text-rose-400 font-medium block">Likely Fake</span>
+              <p className="text-2xl font-black text-rose-300 font-mono">{cards.likely_fake || 0}</p>
+              <span className="text-[10px] text-rose-400/80 font-mono">Flagged</span>
+            </div>
+            <div className="glass-card p-4 rounded-2xl space-y-1">
+              <span className="text-[11px] text-slate-400 font-medium block">Accuracy</span>
+              <p className="text-2xl font-black text-cyan-400 font-mono">{cards.accuracy}%</p>
+              <span className="text-[10px] text-slate-500 font-mono">Overall</span>
+            </div>
+            <div className="glass-card p-4 rounded-2xl space-y-1">
+              <span className="text-[11px] text-slate-400 font-medium block">Precision</span>
+              <p className="text-2xl font-black text-purple-400 font-mono">{cards.precision}%</p>
+              <span className="text-[10px] text-slate-500 font-mono">True Pos.</span>
+            </div>
+            <div className="glass-card p-4 rounded-2xl space-y-1">
+              <span className="text-[11px] text-slate-400 font-medium block">Recall</span>
+              <p className="text-2xl font-black text-amber-400 font-mono">{cards.recall}%</p>
+              <span className="text-[10px] text-slate-500 font-mono">Sensitivity</span>
+            </div>
+            <div className="glass-card p-4 rounded-2xl space-y-1">
+              <span className="text-[11px] text-slate-400 font-medium block">F1 Score</span>
+              <p className="text-2xl font-black text-emerald-400 font-mono">{cards.f1_score}%</p>
+              <span className="text-[10px] text-slate-500 font-mono">Harmonic Mean</span>
+            </div>
+          </div>
+
+          {/* Confusion Matrix Grid */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="glass-card p-6 rounded-3xl space-y-4">
+              <h3 className="text-base font-bold text-white flex items-center space-x-2">
+                <span>🧮</span>
+                <span>Model Confusion Matrix Grid</span>
+              </h3>
+              <div className="grid grid-cols-2 gap-3 font-mono text-center">
+                <div className="p-4 bg-emerald-950/30 border border-emerald-800/40 rounded-2xl space-y-1">
+                  <span className="text-xs text-emerald-400 block font-semibold">True Positives (TP)</span>
+                  <p className="text-3xl font-black text-emerald-300">{cm.tp || 0}</p>
+                  <span className="text-[10px] text-slate-400">Correctly Classified Real</span>
+                </div>
+                <div className="p-4 bg-amber-950/30 border border-amber-800/40 rounded-2xl space-y-1">
+                  <span className="text-xs text-amber-400 block font-semibold">False Positives (FP)</span>
+                  <p className="text-3xl font-black text-amber-300">{cm.fp || 0}</p>
+                  <span className="text-[10px] text-slate-400">False Alarm Real</span>
+                </div>
+                <div className="p-4 bg-rose-950/30 border border-rose-800/40 rounded-2xl space-y-1">
+                  <span className="text-xs text-rose-400 block font-semibold">False Negatives (FN)</span>
+                  <p className="text-3xl font-black text-rose-300">{cm.fn || 0}</p>
+                  <span className="text-[10px] text-slate-400">Missed Fake Signal</span>
+                </div>
+                <div className="p-4 bg-indigo-950/30 border border-indigo-800/40 rounded-2xl space-y-1">
+                  <span className="text-xs text-indigo-400 block font-semibold">True Negatives (TN)</span>
+                  <p className="text-3xl font-black text-indigo-300">{cm.tn || 0}</p>
+                  <span className="text-[10px] text-slate-400">Correctly Classified Fake</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Model Comparison Table */}
+            <div className="glass-card p-6 rounded-3xl space-y-4">
+              <h3 className="text-base font-bold text-white flex items-center space-x-2">
+                <span>🏆</span>
+                <span>Multi-Model Evaluation Comparison</span>
+              </h3>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs font-mono">
+                  <thead className="bg-slate-950 text-slate-400 uppercase border-b border-slate-800">
+                    <tr>
+                      <th className="p-3">Model</th>
+                      <th className="p-3">Accuracy</th>
+                      <th className="p-3">Precision</th>
+                      <th className="p-3">Recall</th>
+                      <th className="p-3">F1 Score</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800/60 text-slate-300">
+                    {Object.entries(modelPerf).map(([key, model]) => (
+                      <tr key={key} className="hover:bg-slate-800/30">
+                        <td className="p-3 font-bold text-white flex items-center space-x-2">
+                          <span>{model.model_name === stats.best_model_name ? "⭐" : "🤖"}</span>
+                          <span>{model.model_name}</span>
+                        </td>
+                        <td className="p-3 text-cyan-300">{(model.accuracy * 100).toFixed(1)}%</td>
+                        <td className="p-3 text-purple-300">{(model.precision * 100).toFixed(1)}%</td>
+                        <td className="p-3 text-amber-300">{(model.recall * 100).toFixed(1)}%</td>
+                        <td className="p-3 text-emerald-300 font-bold">{(model.f1_score * 100).toFixed(1)}%</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // 3. HISTORY PAGE
+    function History({ setToast, currentUser }) {
+      const [records, setRecords] = useState([]);
+      const [loading, setLoading] = useState(true);
+      const [search, setSearch] = useState("");
+      const [filter, setFilter] = useState("all");
+
+      const fetchHistory = async () => {
+        setLoading(true);
+        try {
+          const isAdmin = currentUser?.role === "admin";
+          const data = await apiRequest(`/history?search=${encodeURIComponent(search)}&filter=${filter}&user_id=${currentUser?.id || ""}&is_admin=${isAdmin ? "true" : "false"}`);
+          setRecords(data.history || []);
+        } catch (err) {
+          setToast({ type: "error", message: err.message || "Failed to load history." });
+        } finally {
+          setLoading(false);
+        }
+      };
+
+      useEffect(() => { fetchHistory(); }, [filter]);
+
+      const handleDelete = async (id) => {
+        try {
+          await apiRequest(`/history/${id}`, "DELETE");
+          setToast({ type: "success", message: "Record deleted from database." });
+          fetchHistory();
+        } catch (err) {
+          setToast({ type: "error", message: err.message || "Failed to delete record." });
+        }
+      };
+
+      const handleClearAll = async () => {
+        if (!window.confirm("Are you sure you want to clear your prediction history?")) return;
+        try {
+          await apiRequest("/history", "DELETE");
+          setToast({ type: "success", message: "History cleared." });
+          fetchHistory();
+        } catch (err) {
+          setToast({ type: "error", message: err.message || "Failed to clear history." });
+        }
+      };
+
+      return (
+        <div className="space-y-6 pb-12 animate-fade-in">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <h1 className="text-3xl font-black text-white">Prediction History Log</h1>
+              <p className="text-slate-400 text-xs sm:text-sm mt-1">Audit log of all analyzed news articles and model outputs.</p>
+            </div>
+            <div className="flex gap-2">
+              <button onClick={fetchHistory} className="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-800 rounded-xl text-xs font-semibold">
+                🔄 Refresh
+              </button>
+              <button onClick={handleClearAll} className="px-3.5 py-2 bg-rose-950/40 hover:bg-rose-900 text-rose-300 border border-rose-800/60 rounded-xl text-xs font-semibold">
+                🗑️ Clear History
+              </button>
+            </div>
+          </div>
+
+          {/* Filters Bar */}
+          <div className="glass-card p-4 rounded-2xl flex flex-col sm:flex-row gap-3">
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && fetchHistory()}
+              placeholder="Search news text..."
+              className="flex-1 bg-slate-950 text-slate-100 placeholder-slate-500 rounded-xl px-4 py-2 text-xs border border-slate-800 outline-none"
+            />
+            <select
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+              className="bg-slate-950 text-slate-200 rounded-xl px-4 py-2 text-xs border border-slate-800 outline-none font-mono"
+            >
+              <option value="all">All Predictions</option>
+              <option value="real">Likely Real Only</option>
+              <option value="fake">Likely Fake Only</option>
+            </select>
+          </div>
+
+          {/* Records List */}
+          {loading ? (
+            <LoadingSpinner label="Loading history database..." />
+          ) : records.length === 0 ? (
+            <div className="glass-card p-12 text-center rounded-3xl text-slate-400 text-xs">
+              No prediction records found matching your filters.
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {records.map((rec) => (
+                <div key={rec.id} className="glass-card p-5 rounded-2xl flex flex-col sm:flex-row justify-between gap-4">
+                  <div className="space-y-2 flex-1">
+                    <div className="flex items-center space-x-2 font-mono text-xs">
+                      <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase ${
+                        rec.prediction === "Likely Real" ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40" : "bg-rose-500/20 text-rose-300 border border-rose-500/40"
+                      }`}>
+                        {rec.prediction}
+                      </span>
+                      <span className="text-indigo-300 font-bold">{rec.confidence}% Confidence</span>
+                      <span className="text-slate-500">• {rec.timestamp}</span>
+                    </div>
+                    <p className="text-xs text-slate-300 leading-relaxed font-sans">{rec.news_text}</p>
+                  </div>
+
+                  <div className="flex sm:flex-col justify-end items-end gap-2 border-t sm:border-t-0 sm:border-l border-slate-800 pt-3 sm:pt-0 sm:pl-4">
+                    <button
+                      onClick={() => handleDelete(rec.id)}
+                      className="px-2.5 py-1 bg-rose-950/60 hover:bg-rose-900 text-rose-300 border border-rose-800/80 rounded-lg text-xs font-semibold"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // 4. DATASET PAGE
+    function Dataset({ setToast }) {
+      const [dataset, setDataset] = useState(null);
+      const [loading, setLoading] = useState(true);
+
+      useEffect(() => {
+        const loadDataset = async () => {
+          setLoading(true);
+          try {
+            const data = await apiRequest("/dataset-stats");
+            setDataset(data);
+          } catch (err) {
+            setToast({ type: "error", message: err.message || "Failed to load dataset stats." });
+          } finally {
+            setLoading(false);
+          }
+        };
+        loadDataset();
+      }, []);
+
+      if (loading) return <LoadingSpinner label="Loading training set metrics..." />;
+
+      return (
+        <div className="space-y-8 pb-12 animate-fade-in">
+          <div>
+            <h1 className="text-3xl font-black text-white">Exploratory Dataset Insights</h1>
+            <p className="text-slate-400 text-xs sm:text-sm mt-1">Training corpus stats, class distribution, and top n-gram word frequencies.</p>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 font-mono">
+            <div className="glass-card p-5 rounded-2xl space-y-1">
+              <span className="text-xs text-slate-400 block">Total Records</span>
+              <p className="text-3xl font-black text-white">{dataset?.total_records || 0}</p>
+            </div>
+            <div className="glass-card p-5 rounded-2xl space-y-1 border-emerald-500/20">
+              <span className="text-xs text-emerald-400 block">Real News Samples</span>
+              <p className="text-3xl font-black text-emerald-300">{dataset?.real_count || 0}</p>
+            </div>
+            <div className="glass-card p-5 rounded-2xl space-y-1 border-rose-500/20">
+              <span className="text-xs text-rose-400 block">Fake News Samples</span>
+              <p className="text-3xl font-black text-rose-300">{dataset?.fake_count || 0}</p>
+            </div>
+            <div className="glass-card p-5 rounded-2xl space-y-1">
+              <span className="text-xs text-slate-400 block">TF-IDF Vocabulary Size</span>
+              <p className="text-3xl font-black text-purple-300">{dataset?.vocab_size || 0}</p>
+            </div>
+          </div>
+
+          {/* Top Words Frequency */}
+          {dataset?.top_words && (
+            <div className="glass-card p-6 rounded-3xl space-y-4">
+              <h3 className="text-base font-bold text-white flex items-center space-x-2">
+                <span>🔤</span>
+                <span>Top Lexical Frequency Terms (Cleaned Corpus)</span>
+              </h3>
+              <div className="flex flex-wrap gap-2 font-mono text-xs">
+                {Object.entries(dataset.top_words).map(([word, freq]) => (
+                  <div key={word} className="px-3 py-1.5 bg-slate-950 border border-slate-800 rounded-xl flex items-center space-x-2">
+                    <span className="text-indigo-300 font-bold">{word}</span>
+                    <span className="text-slate-500 text-[10px]">{freq}x</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // 5. MODEL STATS PAGE
+    function ModelStats({ setToast }) {
+      const [modelData, setModelData] = useState(null);
+      const [loading, setLoading] = useState(true);
+
+      useEffect(() => {
+        const loadModel = async () => {
+          setLoading(true);
+          try {
+            const data = await apiRequest("/model-performance");
+            setModelData(data);
+          } catch (err) {
+            setToast({ type: "error", message: err.message || "Failed to load model stats." });
+          } finally {
+            setLoading(false);
+          }
+        };
+        loadModel();
+      }, []);
+
+      if (loading) return <LoadingSpinner label="Fetching machine learning evaluation..." />;
+
+      const models = modelData?.models || {};
+
+      return (
+        <div className="space-y-8 pb-12 animate-fade-in">
+          <div>
+            <h1 className="text-3xl font-black text-white">Machine Learning Pipeline Specs</h1>
+            <p className="text-slate-400 text-xs sm:text-sm mt-1">Multi-model evaluation comparison and feature extraction parameters.</p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {Object.entries(models).map(([name, m]) => (
+              <div key={name} className="glass-card p-6 rounded-3xl space-y-4 border-indigo-500/20">
+                <div className="flex justify-between items-center pb-3 border-b border-slate-800">
+                  <h3 className="font-bold text-white text-base">{m.model_name}</h3>
+                  <span className="text-xs font-mono font-bold text-emerald-400">{(m.accuracy * 100).toFixed(1)}% Acc</span>
+                </div>
+                <div className="space-y-2 font-mono text-xs text-slate-300">
+                  <div className="flex justify-between">
+                    <span>Precision:</span>
+                    <span className="text-purple-300">{(m.precision * 100).toFixed(1)}%</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Recall:</span>
+                    <span className="text-amber-300">{(m.recall * 100).toFixed(1)}%</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>F1 Score:</span>
+                    <span className="text-emerald-300 font-bold">{(m.f1_score * 100).toFixed(1)}%</span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    }
+
+    // 6. USER PROFILE PAGE
+    function UserProfilePage({ currentUser, setCurrentUser, setToast, onLogout }) {
+      const [isEditing, setIsEditing] = useState(false);
+      const [isChangingPass, setIsChangingPass] = useState(false);
+      const [fullName, setFullName] = useState(currentUser?.full_name || "");
+      const [email, setEmail] = useState(currentUser?.email || "");
+      const [oldPass, setOldPass] = useState("");
+      const [newPass, setNewPass] = useState("");
+      const [loading, setLoading] = useState(false);
+
+      const handleUpdateProfile = async (e) => {
+        e.preventDefault();
+        setLoading(true);
+        try {
+          const res = await apiRequest("/auth/profile", "PUT", {
+            user_id: currentUser.id,
+            full_name: fullName,
+            email
+          });
+          setCurrentUser(res.user);
+          setIsEditing(false);
+          setToast({ type: "success", message: "Profile details updated." });
+        } catch (err) {
+          setToast({ type: "error", message: err.message || "Failed to update profile." });
+        } finally {
+          setLoading(false);
+        }
+      };
+
+      const handleChangePassword = async (e) => {
+        e.preventDefault();
+        setLoading(true);
+        try {
+          const res = await apiRequest("/auth/change-password", "PUT", {
+            user_id: currentUser.id,
+            old_password: oldPass,
+            new_password: newPass
+          });
+          setIsChangingPass(false);
+          setOldPass("");
+          setNewPass("");
+          setToast({ type: "success", message: res.message });
+        } catch (err) {
+          setToast({ type: "error", message: err.message || "Failed to change password." });
+        } finally {
+          setLoading(false);
+        }
+      };
+
+      const stats = currentUser?.stats || { total_analyzed: 0, real_count: 0, fake_count: 0 };
+
+      return (
+        <div className="max-w-3xl mx-auto space-y-6 pb-12 animate-fade-in">
+          <div className="glass-card p-6 sm:p-8 rounded-3xl space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-slate-800">
+              <div className="flex items-center space-x-4">
+                <img src={currentUser?.avatar} className="w-16 h-16 rounded-2xl border border-indigo-500/30 p-1 bg-slate-950" alt="avatar" />
+                <div>
+                  <div className="flex items-center space-x-2">
+                    <h2 className="text-xl font-bold text-white">{currentUser?.full_name}</h2>
+                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                      {currentUser?.role}
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-400 font-mono mt-0.5">@{currentUser?.username} • {currentUser?.email}</p>
+                </div>
+              </div>
+
+              <div className="flex gap-2">
+                <button onClick={() => setIsEditing(true)} className="px-3.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-800 rounded-xl text-xs font-semibold">
+                  ✏️ Edit Profile
+                </button>
+                <button onClick={() => setIsChangingPass(true)} className="px-3.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-800 rounded-xl text-xs font-semibold">
+                  🔑 Change Password
+                </button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-3 gap-4 font-mono text-center">
+              <div className="p-4 bg-slate-950 rounded-2xl border border-slate-800">
+                <span className="text-xs text-slate-400 block">Total Analyzed</span>
+                <p className="text-2xl font-black text-white">{stats.total_analyzed}</p>
+              </div>
+              <div className="p-4 bg-emerald-950/30 border border-emerald-800/40 rounded-2xl">
+                <span className="text-xs text-emerald-400 block font-semibold">Real News</span>
+                <p className="text-2xl font-black text-emerald-300">{stats.real_count}</p>
+              </div>
+              <div className="p-4 bg-rose-950/30 border border-rose-800/40 rounded-2xl">
+                <span className="text-xs text-rose-400 block font-semibold">Fake News</span>
+                <p className="text-2xl font-black text-rose-300">{stats.fake_count}</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Edit Profile Modal */}
+          {isEditing && (
+            <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
+              <div className="glass-card border border-slate-800 rounded-3xl max-w-md w-full p-6 space-y-4 shadow-2xl">
+                <div className="flex justify-between items-center border-b border-slate-800 pb-3">
+                  <h3 className="font-bold text-white text-sm">Edit Account Details</h3>
+                  <button onClick={() => setIsEditing(false)} className="text-slate-400 hover:text-white font-bold">&times;</button>
+                </div>
+                <form onSubmit={handleUpdateProfile} className="space-y-3 text-xs">
+                  <div>
+                    <label className="text-slate-300 block mb-1">Full Name</label>
+                    <input type="text" required value={fullName} onChange={(e) => setFullName(e.target.value)} className="w-full bg-slate-950 text-slate-100 p-2.5 rounded-xl border border-slate-800 outline-none" />
+                  </div>
+                  <div>
+                    <label className="text-slate-300 block mb-1">Email Address</label>
+                    <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} className="w-full bg-slate-950 text-slate-100 p-2.5 rounded-xl border border-slate-800 outline-none" />
+                  </div>
+                  <div className="flex justify-end gap-2 pt-2">
+                    <button type="button" onClick={() => setIsEditing(false)} className="px-4 py-2 bg-slate-900 text-slate-300 rounded-xl">Cancel</button>
+                    <button type="submit" disabled={loading} className="px-5 py-2 bg-indigo-600 text-white font-bold rounded-xl">{loading ? "Saving..." : "Save Changes"}</button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+
+          {/* Change Password Modal */}
+          {isChangingPass && (
+            <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
+              <div className="glass-card border border-slate-800 rounded-3xl max-w-md w-full p-6 space-y-4 shadow-2xl">
+                <div className="flex justify-between items-center border-b border-slate-800 pb-3">
+                  <h3 className="font-bold text-white text-sm">Change Password</h3>
+                  <button onClick={() => setIsChangingPass(false)} className="text-slate-400 hover:text-white font-bold">&times;</button>
+                </div>
+                <form onSubmit={handleChangePassword} className="space-y-3 text-xs">
+                  <div>
+                    <label className="text-slate-300 block mb-1">Current Password</label>
+                    <input type="password" required value={oldPass} onChange={(e) => setOldPass(e.target.value)} className="w-full bg-slate-950 text-slate-100 p-2.5 rounded-xl border border-slate-800 outline-none" />
+                  </div>
+                  <div>
+                    <label className="text-slate-300 block mb-1">New Password (Min 6 chars)</label>
+                    <input type="password" required value={newPass} onChange={(e) => setNewPass(e.target.value)} className="w-full bg-slate-950 text-slate-100 p-2.5 rounded-xl border border-slate-800 outline-none" />
+                  </div>
+                  <div className="flex justify-end gap-2 pt-2">
+                    <button type="button" onClick={() => setIsChangingPass(false)} className="px-4 py-2 bg-slate-900 text-slate-300 rounded-xl">Cancel</button>
+                    <button type="submit" disabled={loading} className="px-5 py-2 bg-indigo-600 text-white font-bold rounded-xl">{loading ? "Updating..." : "Update Password"}</button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // 7. ADMIN DASHBOARD PAGE
+    function AdminDashboardPage({ setToast }) {
+      const [adminStats, setAdminStats] = useState(null);
+      const [users, setUsers] = useState([]);
+      const [loading, setLoading] = useState(true);
+      const [searchUser, setSearchUser] = useState("");
+
+      const fetchAdminData = async () => {
+        setLoading(true);
+        try {
+          const statsRes = await apiRequest("/admin/stats");
+          const usersRes = await apiRequest("/admin/users");
+          setAdminStats(statsRes);
+          setUsers(usersRes.users || []);
+        } catch (err) {
+          setToast({ type: "error", message: err.message || "Failed to load admin data." });
+        } finally {
+          setLoading(false);
+        }
+      };
+
+      useEffect(() => { fetchAdminData(); }, []);
+
+      const handleToggleRole = async (userId, currentRole) => {
+        const newRole = currentRole === "admin" ? "user" : "admin";
+        try {
+          await apiRequest(`/admin/users/${userId}/role`, "PUT", { role: newRole });
+          setToast({ type: "success", message: `Role updated to ${newRole.toUpperCase()}.` });
+          fetchAdminData();
+        } catch (err) {
+          setToast({ type: "error", message: err.message || "Failed to update role." });
+        }
+      };
+
+      const handleDeleteUser = async (userId) => {
+        if (!window.confirm("Are you sure you want to delete this user?")) return;
+        try {
+          await apiRequest(`/admin/users/${userId}`, "DELETE");
+          setToast({ type: "success", message: "User deleted." });
+          fetchAdminData();
+        } catch (err) {
+          setToast({ type: "error", message: err.message || "Failed to delete user." });
+        }
+      };
+
+      if (loading) return <LoadingSpinner label="Loading administration center..." />;
+
+      const filteredUsers = users.filter(u =>
+        u.full_name.toLowerCase().includes(searchUser.toLowerCase()) ||
+        u.username.toLowerCase().includes(searchUser.toLowerCase()) ||
+        u.email.toLowerCase().includes(searchUser.toLowerCase())
+      );
+
+      const pStats = adminStats?.prediction_stats || { total_checked: 0, real_count: 0, fake_count: 0 };
+
+      return (
+        <div className="space-y-8 pb-12 animate-fade-in">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <h1 className="text-3xl font-black text-white">Admin Dashboard & User Management</h1>
+              <p className="text-slate-400 text-xs sm:text-sm mt-1">Platform administration, role promotion, and user accounts directory.</p>
+            </div>
+            <button onClick={fetchAdminData} className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-800 rounded-xl text-xs font-semibold">
+              🔄 Refresh
+            </button>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 font-mono">
+            <div className="glass-card p-5 rounded-2xl space-y-1">
+              <span className="text-xs text-slate-400 block">Total Users</span>
+              <p className="text-3xl font-black text-white">{adminStats?.total_users || 0}</p>
+            </div>
+            <div className="glass-card p-5 rounded-2xl space-y-1 border-purple-500/20">
+              <span className="text-xs text-purple-400 block">Admins</span>
+              <p className="text-3xl font-black text-purple-300">{adminStats?.admin_count || 0}</p>
+            </div>
+            <div className="glass-card p-5 rounded-2xl space-y-1">
+              <span className="text-xs text-slate-400 block">Standard Users</span>
+              <p className="text-3xl font-black text-indigo-300">{adminStats?.user_count || 0}</p>
+            </div>
+            <div className="glass-card p-5 rounded-2xl space-y-1 border-emerald-500/20">
+              <span className="text-xs text-emerald-400 block">System News Checked</span>
+              <p className="text-3xl font-black text-emerald-300">{pStats.total_checked}</p>
+            </div>
+          </div>
+
+          <div className="glass-card p-6 rounded-3xl space-y-4">
+            <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
+              <h3 className="text-base font-bold text-white">👥 User Accounts Directory ({filteredUsers.length})</h3>
+              <input
+                type="text"
+                value={searchUser}
+                onChange={(e) => setSearchUser(e.target.value)}
+                placeholder="Search user name or email..."
+                className="bg-slate-950 text-slate-200 placeholder-slate-500 rounded-xl px-3 py-2 text-xs border border-slate-800 outline-none w-full sm:w-64"
+              />
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs font-mono">
+                <thead className="bg-slate-950 text-slate-400 uppercase border-b border-slate-800">
+                  <tr>
+                    <th className="p-3">User</th>
+                    <th className="p-3">Email</th>
+                    <th className="p-3">Role</th>
+                    <th className="p-3">Joined</th>
+                    <th className="p-3">Analyzed</th>
+                    <th className="p-3 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800/60 text-slate-300">
+                  {filteredUsers.map((u) => (
+                    <tr key={u.id} className="hover:bg-slate-800/30">
+                      <td className="p-3 flex items-center space-x-3 font-sans">
+                        <img src={u.avatar} className="w-7 h-7 rounded-full border border-slate-800" alt="avatar" />
+                        <div>
+                          <p className="font-bold text-white">{u.full_name}</p>
+                          <p className="text-[10px] text-slate-400 font-mono">@{u.username}</p>
+                        </div>
+                      </td>
+                      <td className="p-3 text-slate-300">{u.email}</td>
+                      <td className="p-3">
+                        <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase ${
+                          u.role === "admin" ? "bg-purple-500/20 text-purple-300 border border-purple-500/30" : "bg-slate-800 text-slate-400"
+                        }`}>
+                          {u.role}
+                        </span>
+                      </td>
+                      <td className="p-3 text-slate-400">{u.created_at}</td>
+                      <td className="p-3 font-bold text-white">{u.total_analyzed}</td>
+                      <td className="p-3 text-right space-x-2">
+                        <button onClick={() => handleToggleRole(u.id, u.role)} className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-indigo-300 rounded-lg text-[10px] font-semibold">
+                          {u.role === "admin" ? "Demote" : "Promote"}
+                        </button>
+                        <button onClick={() => handleDeleteUser(u.id)} className="px-2 py-1 bg-rose-950/60 hover:bg-rose-900 text-rose-300 rounded-lg text-[10px] font-semibold">
+                          Delete
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // 8. LOGIN PAGE
+    function LoginPage({ onLoginSuccess, setActivePage, setToast }) {
+      const [identifier, setIdentifier] = useState("");
+      const [password, setPassword] = useState("");
+      const [rememberMe, setRememberMe] = useState(true);
+      const [loading, setLoading] = useState(false);
+
+      const handleLogin = async (e) => {
+        e.preventDefault();
+        setLoading(true);
+        try {
+          const res = await apiRequest("/auth/login", "POST", { identifier, password });
+          setToast({ type: "success", message: res.message });
+          onLoginSuccess(res.user, rememberMe);
+        } catch (err) {
+          setToast({ type: "error", message: err.message || "Invalid login credentials." });
+        } finally {
+          setLoading(false);
+        }
+      };
+
+      return (
+        <div className="min-h-screen flex items-center justify-center p-4 sm:p-6 lg:p-8 animate-fade-in">
+          <div className="max-w-4xl w-full grid grid-cols-1 md:grid-cols-2 glass-panel border border-slate-800 rounded-3xl overflow-hidden shadow-2xl">
+            {/* Left Visual Branding */}
+            <div className="bg-gradient-to-br from-indigo-950 via-slate-900 to-purple-950 p-8 flex flex-col justify-between border-b md:border-b-0 md:border-r border-slate-800">
+              <div className="space-y-6">
+                <div className="flex items-center space-x-3">
+                  <div className="h-12 w-12 rounded-2xl bg-indigo-600/30 border border-indigo-500/40 flex items-center justify-center text-2xl shadow-indigo-500/20 shadow-lg">
+                    🛡️
+                  </div>
+                  <span className="text-2xl font-black text-white tracking-tight">VeriTruth AI</span>
+                </div>
+                <div className="space-y-2">
+                  <h2 className="text-2xl font-extrabold text-white leading-tight">AI Fake News Detection Platform</h2>
+                  <p className="text-slate-300 text-xs leading-relaxed">
+                    Verify news authenticity with NLP tokenization, TF-IDF n-gram vectorization, and multi-model machine learning.
+                  </p>
+                </div>
+              </div>
+
+              {/* Demo Fill Buttons */}
+              <div className="space-y-2 pt-6 border-t border-slate-800/80">
+                <span className="text-xs text-slate-400 block font-semibold">⚡ Quick Demo Credentials:</span>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => { setIdentifier("admin@veritruth.ai"); setPassword("Admin@123"); }}
+                    className="flex-1 py-2 bg-purple-950/60 hover:bg-purple-900 border border-purple-800/60 text-purple-300 text-xs rounded-xl font-mono font-semibold transition-all"
+                  >
+                    🔑 Fill Admin
+                  </button>
+                  <button
+                    onClick={() => { setIdentifier("user@veritruth.ai"); setPassword("User@123"); }}
+                    className="flex-1 py-2 bg-indigo-950/60 hover:bg-indigo-900 border border-indigo-800/60 text-indigo-300 text-xs rounded-xl font-mono font-semibold transition-all"
+                  >
+                    👤 Fill User
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Right Form */}
+            <div className="p-8 flex flex-col justify-center space-y-6 bg-slate-950/60">
+              <div>
+                <h3 className="text-2xl font-black text-white">Sign In</h3>
+                <p className="text-slate-400 text-xs mt-1">Enter your credentials to access your dashboard.</p>
+              </div>
+
+              <form onSubmit={handleLogin} className="space-y-4">
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-slate-300">Email or Username</label>
+                  <input
+                    type="text"
+                    required
+                    value={identifier}
+                    onChange={(e) => setIdentifier(e.target.value)}
+                    placeholder="admin@veritruth.ai"
+                    className="w-full bg-slate-900 text-slate-100 placeholder-slate-500 rounded-xl px-4 py-2.5 text-xs border border-slate-800 focus:border-indigo-500 outline-none"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-slate-300">Password</label>
+                  <input
+                    type="password"
+                    required
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="••••••••"
+                    className="w-full bg-slate-900 text-slate-100 placeholder-slate-500 rounded-xl px-4 py-2.5 text-xs border border-slate-800 focus:border-indigo-500 outline-none"
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full py-3 bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 hover:from-indigo-500 hover:to-pink-500 text-white font-bold text-xs sm:text-sm rounded-xl shadow-lg shadow-indigo-600/30 transition-all disabled:opacity-50"
+                >
+                  {loading ? "Authenticating..." : "Sign In to Platform →"}
+                </button>
+              </form>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // MAIN APP COMPONENT & ROUTER
+    function App() {
+      const [currentUser, setCurrentUser] = useState(() => {
+        const saved = localStorage.getItem("veritruth_user");
+        return saved ? JSON.parse(saved) : null;
+      });
+
+      const [activePage, setActivePage] = useState(() => {
+        const savedUser = localStorage.getItem("veritruth_user");
+        if (savedUser) {
+          const parsed = JSON.parse(savedUser);
+          return parsed.role === "admin" ? "admin_dashboard" : "home";
+        }
+        return "login";
+      });
+
+      const [toast, setToast] = useState(null);
+      const [serverOnline, setServerOnline] = useState(false);
+
+      useEffect(() => {
+        const checkServer = async () => {
+          try {
+            const res = await fetch("http://127.0.0.1:5000/");
+            if (res.ok) setServerOnline(true);
+          } catch (err) {
+            setServerOnline(false);
+          }
+        };
+        checkServer();
+        const interval = setInterval(checkServer, 10000);
+        return () => clearInterval(interval);
+      }, []);
+
+      const handleLoginSuccess = (user, remember) => {
+        setCurrentUser(user);
+        if (remember) {
+          localStorage.setItem("veritruth_user", JSON.stringify(user));
+        }
+        setActivePage(user.role === "admin" ? "admin_dashboard" : "home");
+      };
+
+      const handleLogout = () => {
+        localStorage.removeItem("veritruth_user");
+        setCurrentUser(null);
+        setActivePage("login");
+        setToast({ type: "success", message: "Logged out." });
+      };
+
+      if (!currentUser) {
+        return (
+          <div className="min-h-screen bg-mesh text-slate-100 font-sans">
+            <LoginPage onLoginSuccess={handleLoginSuccess} setActivePage={setActivePage} setToast={setToast} />
+            <Toast toast={toast} onClose={() => setToast(null)} />
+          </div>
+        );
+      }
+
+      return (
+        <div className="min-h-screen bg-mesh text-slate-100 font-sans flex flex-col">
+          <Navbar
+            activePage={activePage}
+            setActivePage={setActivePage}
+            currentUser={currentUser}
+            onLogout={handleLogout}
+            serverOnline={serverOnline}
+          />
+          <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 pt-6">
+            {activePage === "admin_dashboard" && <AdminDashboardPage setToast={setToast} />}
+            {activePage === "home" && <Home setActivePage={setActivePage} setToast={setToast} currentUser={currentUser} />}
+            {activePage === "dashboard" && <Dashboard setToast={setToast} />}
+            {activePage === "history" && <History setToast={setToast} currentUser={currentUser} />}
+            {activePage === "dataset" && <Dataset setToast={setToast} />}
+            {activePage === "model" && <ModelStats setToast={setToast} />}
+            {activePage === "profile" && <UserProfilePage currentUser={currentUser} setCurrentUser={setCurrentUser} setToast={setToast} onLogout={handleLogout} />}
+          </main>
+          <Toast toast={toast} onClose={() => setToast(null)} />
+          <footer className="border-t border-slate-900/80 bg-slate-950/80 py-6 text-center text-xs text-slate-500 mt-8">
+            <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
+              <span>🛡️ VeriTruth AI - Powered by Scikit-learn, TF-IDF Vectorization & Flask</span>
+              <span>Logged in as: {currentUser.full_name} ({currentUser.role.toUpperCase()})</span>
+            </div>
+          </footer>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+  </script>
+</body>
+</html>

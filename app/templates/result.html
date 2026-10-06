@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Analysis Result - TruthEngine AI</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+</head>
+<body>
+
+    <!-- Header Navigation -->
+    <header>
+        <div class="nav-container">
+            <div class="logo">✦ Truth<span>Engine</span></div>
+            <ul class="nav-links">
+                <li><a href="/">Home</a></li>
+                <li><a href="/about">Methodology</a></li>
+                {% if user %}
+                <li class="user-info">
+                    <span>👤 {{ user }}</span>
+                    <a href="/logout" class="logout-btn">Logout</a>
+                </li>
+                {% endif %}
+            </ul>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main>
+        <div class="result-header">
+            <span class="badge">Analysis Complete</span>
+            <h1>Integrity Assessment Report</h1>
+        </div>
+
+        <div class="result-card-container">
+            <!-- Left Side: Verdict Details -->
+            <div class="glass-card">
+                {% if result.prediction == "True" %}
+                <div class="verdict-box credible">
+                    <div class="verdict-icon">✓</div>
+                    <div class="verdict-title">Credible Content</div>
+                    <p>This article matches typical professional journalistic vocabulary. Linguistic markers and structural layout indicate a high level of factual and informative credibility.</p>
+                </div>
+                {% else %}
+                <div class="verdict-box fake">
+                    <div class="verdict-icon">✗</div>
+                    <div class="verdict-title">Deceptive / Sensationalized</div>
+                    <p>Linguistic markers suggest high sensationalism, clickbait structure, or conspiracy-style vocabularies. High alignment with patterns observed in unsubstantiated news sources.</p>
+                </div>
+                {% endif %}
+
+                <!-- Confidence Gauge -->
+                <div class="meter-container {{ 'credible' if result.prediction == 'True' else 'fake' }}">
+                    <div class="meter-label">
+                        <span>Model Confidence Rating</span>
+                        <span>{{ "%.2f"|format(result.confidence * 100) }}%</span>
+                    </div>
+                    <div class="meter-bg">
+                        <div class="meter-fill" data-confidence="{{ result.confidence }}"></div>
+                    </div>
+                </div>
+
+                <!-- Analysis Bullet Points -->
+                <h3>Key Linguistic Indicators</h3>
+                <ul class="breakdown-list {{ 'credible' if result.prediction == 'True' else 'fake' }}">
+                    {% if result.prediction == "True" %}
+                    <li class="breakdown-item">
+                        <div class="breakdown-bullet"></div>
+                        <div><strong>Objective Language:</strong> Minimal use of exclamation marks, capitalization, or emotional clickbait modifiers.</div>
+                    </li>
+                    <li class="breakdown-item">
+                        <div class="breakdown-bullet"></div>
+                        <div><strong>Structured Subjects:</strong> Heavy correlation with topics like politicsNews and worldnews, showing consistent date structures.</div>
+                    </li>
+                    <li class="breakdown-item">
+                        <div class="breakdown-bullet"></div>
+                        <div><strong>Factual Focus:</strong> Higher density of third-person nouns, formal references, and citation indicators.</div>
+                    </li>
+                    {% else %}
+                    <li class="breakdown-item">
+                        <div class="breakdown-bullet"></div>
+                        <div><strong>Sensationalist Headlines:</strong> Extensive use of exclamation marks, capitalization, and urgent call-to-action modifiers.</div>
+                    </li>
+                    <li class="breakdown-item">
+                        <div class="breakdown-bullet"></div>
+                        <div><strong>Informal Structure:</strong> Frequent use of first-person pronouns, conspiratorial vocabulary (e.g., "deep state", "banned", "whistleblower").</div>
+                    </li>
+                    <li class="breakdown-item">
+                        <div class="breakdown-bullet"></div>
+                        <div><strong>Unsubstantiated Subject matter:</strong> Strong alignment with speculative left-news, politics, or general government clickbait subjects.</div>
+                    </li>
+                    {% endif %}
+                </ul>
+
+                <div style="margin-top: 2rem; text-align: center;">
+                    <a href="/" class="submit-btn" style="text-decoration: none; display: inline-flex;">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="transform: rotate(180deg);"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
+                        <span>Analyze Another Article</span>
+                    </a>
+                </div>
+            </div>
+
+            <!-- Right Side: Original Text -->
+            <div class="glass-card">
+                <h2>Submitted Content</h2>
+                <p>The text content processed by the model's tokenization and TF-IDF pipeline:</p>
+                <div class="original-text-box">{{ result.raw_text }}</div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer>
+        <div class="footer-container">
+            <div>© 2026 TruthEngine AI. Built for Fake News Detection.</div>
+            <div>Powered by <a href="https://scikit-learn.org" target="_blank" rel="noopener">Scikit-Learn</a> & <a href="https://flask.palletsprojects.com" target="_blank" rel="noopener">Flask</a></div>
+        </div>
+    </footer>
+
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>
